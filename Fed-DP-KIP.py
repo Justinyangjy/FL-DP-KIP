@@ -318,6 +318,7 @@ def main(_):
     opt_state = opt_init(init_params)
     itercount = itertools.count()
 
+    # only need to change this part ...
     print('\nStarting training...')
     for epoch in range(1, FLAGS.epochs + 1):
         start_time = time.time()
