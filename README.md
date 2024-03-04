@@ -1,4 +1,4 @@
-# DP-KIP
+# Fed-DP-KIP
 
 ## Dependendencies
 
@@ -21,12 +21,11 @@
     neural-tangents 0.6.1
     
   
-## Run DP-KIP code
+## Run Fed-DP-KIP
 
-### Image data
+`/bin/python3 /home/justin/FedLearning/dpkip_inf_ntk_colored.py --dpsgd=True --epsilon=0.5 --width=100 --l2_norm_clip=1.0 --learning_rate=0.01 --batch_size=32 --reg=0.001 --epochs=10 --support_size=500 --result_images_path=result_images_0.5_500 > /home/justin/FedLearning/output_0.5_500/100_1.0_0.01_32_0.001_10.txt`
 
- `python dpkip_inf_ntk.py --dpsgd=True --l2_norm_clip=1e-6 --epochs=10 --learning_rate=1e-2 --batch_size=50 --epsilon=1 --architecture='FC' --width=1024 --dataset='mnist' --support_size=10` 
- 
-### Tabular data
+`/bin/python3 /home/justin/FedLearning/dpkip_inf_ntk_imbalance.py > /home/justin/FedLearning/output/Fed-DP-KIP_imblance.txt`
 
- `python dpkip_tab_data.py --dpsgd=True --reg=1e-6 --learning_rate=1e-1 --l2_norm_clip=1e-1 --batch_rate=0.01 --epochs=10 --dataset='credit' --undersampled_rate=0.01 --architecture='FC' --support_size=2 --width=1024`
+`/bin/python3 /home/justin/FedLearning/dpkip_inf_ntk.py > /home/justin/FedLearning/output/Fed-DP-KIP.txt`
+
