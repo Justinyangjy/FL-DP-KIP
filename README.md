@@ -23,9 +23,18 @@
   
 ## Run Fed-DP-KIP
 
-`/bin/python3 /home/justin/FedLearning/dpkip_inf_ntk_colored.py --dpsgd=True --epsilon=0.5 --width=100 --l2_norm_clip=1.0 --learning_rate=0.01 --batch_size=32 --reg=0.001 --epochs=10 --support_size=500 --result_images_path=result_images_0.5_500 > /home/justin/FedLearning/output_0.5_500/100_1.0_0.01_32_0.001_10.txt`
+`python3 dpkip_inf_ntk.py > ./output/Fed-DP-KIP.txt`
 
-`/bin/python3 /home/justin/FedLearning/dpkip_inf_ntk_imbalance.py > /home/justin/FedLearning/output/Fed-DP-KIP_imblance.txt`
+`python3 dpkip_inf_ntk_imbalance.py > ./output/Fed-DP-KIP_imblance.txt`
 
-`/bin/python3 /home/justin/FedLearning/dpkip_inf_ntk.py > /home/justin/FedLearning/output/Fed-DP-KIP.txt`
+* Colored MNIST from "Learning from Failure: Training Debiased Classifier from Biased Classifier" [link](https://github.com/alinlab/LfF)
 
+`python3 dpkip_inf_ntk_colored.py --dpsgd=True --epsilon=0.5 --width=100 --l2_norm_clip=1.0 --learning_rate=0.01 --batch_size=32 --reg=0.001 --epochs=10 --support_size=500 --result_images_path=result_images_0.5_500 > ./output_0.5_500/100_1.0_0.01_32_0.001_10.txt`
+
+## Sample output images [WIP]
+
+* Class Imbalanced
+![image](./sample_images/img_1.png)
+
+* Color-MNIST
+![image](./sample_images/img_2.png)
