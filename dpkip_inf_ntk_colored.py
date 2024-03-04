@@ -25,8 +25,9 @@ import numpy as np
 
 import functools
 
-from aux_files import class_balanced_sample, one_hot, get_tfds_dataset, get_normalization_data, normalize, generate_balanced_data
+from aux_files import class_balanced_sample, one_hot, get_tfds_dataset, get_normalization_data, normalize, generate_balanced_data, generate_seperate_data, generate_imbalanced_data
 from zca_preprocess import apply_preprocess
+from colored_aux import get_color_mnist
 
 from jax import scipy as sp
 
@@ -50,10 +51,10 @@ import gc
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean(
-    'dpsgd', True, 'If True, train with DP-SGD. If False, '
+    'dpsgd', False, 'If True, train with DP-SGD. If False, '
     'train with vanilla SGD.')
-flags.DEFINE_float('reg', 1e-6, 'Regularization parameter')
-flags.DEFINE_float('learning_rate', 5e-3, 'Learning rate for training')
+flags.DEFINE_float('reg', 1e-3, 'Regularization parameter')
+flags.DEFINE_float('learning_rate', 5e-4, 'Learning rate for training')
 flags.DEFINE_float('l2_norm_clip', 1e-5, 'Clipping norm')
 flags.DEFINE_integer('batch_size', 64, 'Batch size')
 flags.DEFINE_integer('epochs', 10, 'Number of epochs')
@@ -62,10 +63,10 @@ flags.DEFINE_integer(
     'microbatches', None, 'Number of microbatches '
     '(must evenly divide batch_size)')
 flags.DEFINE_string('model_dir', None, 'Model directory')
-flags.DEFINE_string('dataset', 'mnist', 'Dataset')
+flags.DEFINE_string('dataset', 'color_mnist', 'Dataset')
 flags.DEFINE_string('architecture', 'FC', 'choice of neural network architecture yielding the corresponding NTK')
 flags.DEFINE_integer('support_size', 10, 'Support dataset size')
-flags.DEFINE_integer('width', 200, 'NTK width')
+flags.DEFINE_integer('width', 400, 'NTK width')
 flags.DEFINE_float('delta', 1e-5, 'Delta param for DP')
 flags.DEFINE_float('epsilon', 10. , 'Epsilon param for DP')
 flags.DEFINE_boolean(
@@ -73,9 +74,14 @@ flags.DEFINE_boolean(
 flags.DEFINE_boolean(
     'random_init', False, 'Init support data as random images.')
 
+
 #### FL PARAMS
-flags.DEFINE_integer('n_clients', 10, 'number of FL clients')
-flags.DEFINE_float('alpha', 2, 'Alpha param of dirchlet distribution for imbalanced classes')
+flags.DEFINE_integer('n_clients', 1, 'number of FL clients')
+flags.DEFINE_float('alpha', 1e-3, 'Alpha param of dirchlet distribution for imbalanced classes')
+
+#### Logging
+flags.DEFINE_string('result_images_path', 'result_images', 'result_images_path')
+flags.DEFINE_string('acc_path', 'accuracy', 'acc_path')
 
 # Define the KIP loss
 def loss(params, batch, y_support, kernel_fn, reg=1e-6):
@@ -167,6 +173,9 @@ def shape_as_image(images, labels, dataset, dummy_dim=False):
   if dataset=='mnist' or dataset=='fashion_mnist':
     target_shape = (-1, 1, 28, 28, 1) if dummy_dim else (-1, 28, 28, 1)
     images_reshaped = jnp.reshape(images, target_shape)
+  if dataset=='color_mnist':
+    target_shape = (-1, 1, 28, 28, 3) if dummy_dim else (-1, 28, 28, 3)
+    images_reshaped = jnp.reshape(images, target_shape)
   elif dataset=='cifar10' or dataset=='svhn_cropped' or dataset=='cifar100':
     target_shape = (-1, 1, 32, 32, 3) if dummy_dim else (-1, 32, 32, 3)
     images_reshaped = jnp.reshape(images, target_shape) 
@@ -240,7 +249,19 @@ def main(_):
 
   if FLAGS.dataset == 'mnist':
     train_images, train_labels, test_images, test_labels = datasets.mnist()
-    print(train_images.shape, train_labels.shape)
+    print("train_labels=", train_labels)
+    LABELS_TRAIN=jnp.argmax(train_labels, axis=1)
+    Y_TRAIN=one_hot(LABELS_TRAIN, num_classes)
+  elif FLAGS.dataset == 'color_mnist':
+    train_images, train_labels, test_images, test_labels = get_color_mnist()
+    train_images[train_images<0] = 0
+    train_images[train_images>1] = 1
+
+    # X_TRAIN_RAW, train_labels, X_TEST_RAW, test_labels = get_color_mnist()
+    # channel_means, channel_stds = get_normalization_data(X_TRAIN_RAW)
+    # train_images, test_images = normalize(X_TRAIN_RAW, channel_means, channel_stds), normalize(X_TEST_RAW, channel_means, channel_stds)
+    print("LoL:", np.max(train_images), np.max(test_images))
+
     client_train_X, client_train_y, client_train_labels, client_test_X, client_test_y, client_test_labels= generate_balanced_data(train_images, train_labels, test_images, test_labels, FLAGS.seed, FLAGS.n_clients)
     print(len(client_train_X), client_train_y[0].shape, client_train_labels[0].shape)
     # train_labels = client_train_y[0]
@@ -316,9 +337,9 @@ def main(_):
   opt_init, opt_update, get_params = optimizers.adam(FLAGS.learning_rate)
 
   @jit
-  def update(_, i, opt_state, batch):
+  def update(_, i, opt_state, batch, y_support):
     params = get_params(opt_state)
-    return opt_update(i, grad(loss)(params, batch), opt_state)
+    return opt_update(i, grad(loss)(params, batch, y_support, kernel_fn), opt_state)
 
   @jit
   def private_update(rng, i, opt_state, batch, y_support, sigma_value):
@@ -333,6 +354,9 @@ def main(_):
   _, labels_init, init_params, y_init = class_balanced_sample(FLAGS.support_size, LABELS_TRAIN, train_images, Y_TRAIN, seed=FLAGS.seed)
   """Initialize distilled images as N(0,1)"""
   if FLAGS.dataset == 'mnist':
+    init_params, y_init = shape_as_image(init_params, y_init, FLAGS.dataset)
+    #print('init_params.shape after reshape=',init_params.shape)
+  elif FLAGS.dataset == 'color_mnist':
     init_params, y_init = shape_as_image(init_params, y_init, FLAGS.dataset)
     #print('init_params.shape after reshape=',init_params.shape)
   elif  FLAGS.dataset == 'fashion_mnist':
@@ -396,21 +420,20 @@ def main(_):
 
         else:
           opt_state_c = update(
-              key, next(itercount), opt_state_c, shape_as_image(*next(client_batches[c])).shape)
+              key, next(itercount), opt_state_c, shape_as_image(*next(client_batches[c]), FLAGS.dataset),y_init)
       if c == 0:
           params_next = get_params(opt_state_c)
       else:
           params_next += get_params(opt_state_c)
-      mse_loss, acc = client_eval_acc(get_params(opt_state_c), y_init, c, kernel_fn, FLAGS.reg)
-      print(f"Client {c} test loss: ", mse_loss)
-      print(f"Client {c} test acc: ", acc)
+      # mse_loss, acc = client_eval_acc(get_params(opt_state_c), y_init, c, kernel_fn, FLAGS.reg)
+      # print(f"Client {c} test loss: ", mse_loss)
+      # print(f"Client {c} test acc: ", acc)
       # save_distill_client(c, epoch, save_path, get_params(opt_state_c))
 
     epoch_time = time.time() - start_time
     print(f'Epoch {epoch} in {epoch_time:0.2f} sec')
 
     # evaluate test accuracy
-    # params_next = np.array(params_next)
     params_next = np.true_divide(params_next, FLAGS.n_clients)
     params_next[np.isnan(params_next)] = 0
     params = params_next
@@ -433,12 +456,23 @@ def main(_):
   if FLAGS.dataset == 'mnist':
     class_names = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
     sample_raw= sample_raw * np.float32(255.) #undo preprocess step in data loading
+  elif FLAGS.dataset == 'color_mnist':
+    class_names = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+    # sample_init[sample_init<0] = 0
+    # sample_init[sample_init>1] = 1
+    # sample_raw[sample_raw<0] = 0
+    # sample_raw[sample_raw>1] = 1
+    # sample_final[sample_final<0] = 0
+    # sample_final[sample_final>1] = 1
+    sample_init=np.uint8(sample_init * np.float32(255.))
+    sample_raw= np.uint8(sample_raw * np.float32(255.)) #undo preprocess step in data loading
+    sample_final= np.uint8(sample_final * np.float32(255.))
   else: 
     class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
   cur_path = os.path.dirname(os.path.abspath(__file__))
-  save_path=os.path.join(cur_path, 'result_images')
-  save_acc_path=os.path.join(cur_path, 'accuracy')
+  save_path=os.path.join(cur_path, FLAGS.result_images_path)
+  save_acc_path=os.path.join(cur_path, FLAGS.acc_path)
   save_data_path=os.path.join(cur_path, 'distilled_images')
   
   #Save accuracy results
@@ -473,8 +507,10 @@ def main(_):
     plt.subplot(3, 10, 20+i)
     plt.imshow(np.squeeze(img))
 
-  filename="distilled_img_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_zca={}_initimgs={}.png".format(FLAGS.dataset, FLAGS.architecture, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, FLAGS.reg, FLAGS.seed,  FLAGS.zca, FLAGS.random_init)
+  filename="imbalanced_distilled_img_{}_{}_supp_size={}_eps={}_delta={}_alpha{}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_zca={}_initimgs={}.png".format(FLAGS.dataset, FLAGS.architecture, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.alpha, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, FLAGS.reg, FLAGS.seed,  FLAGS.zca, FLAGS.random_init)
   plt.savefig(os.path.join(save_path, filename), format="png")
+  print(acc)
+  return acc
 
 if __name__ == '__main__':
   app.run(main)

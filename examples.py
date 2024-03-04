@@ -89,8 +89,8 @@ def mnist(permute_train=False):
 
     train_images = _partial_flatten(train_images) / np.float32(255.)
     test_images = _partial_flatten(test_images) / np.float32(255.)
-    train_labels = _one_hot(train_labels, 10)
-    test_labels = _one_hot(test_labels, 10)
+    # train_labels = _one_hot(train_labels, 10)
+    # test_labels = _one_hot(test_labels, 10)
 
 
     print("Saving downloaded mnist dataset")
@@ -107,11 +107,11 @@ def mnist(permute_train=False):
 
       train_images = _partial_flatten(train_images) / np.float32(255.)
       test_images = _partial_flatten(test_images) / np.float32(255.)
-      train_labels = _one_hot(train_labels, 10)
-      test_labels = _one_hot(test_labels, 10)
+      # train_labels = _one_hot(train_labels, 10)
+      # test_labels = _one_hot(test_labels, 10)
 
-      print("Saving downloaded mnist dataset")
-      np.savez(os.path.join(save_path, "mnist.npz"), train_images=train_images, test_images=test_images, train_labels=train_labels, test_labels=test_labels)
+      # print("Saving downloaded mnist dataset")
+      # np.savez(os.path.join(save_path, "mnist.npz"), train_images=train_images, test_images=test_images, train_labels=train_labels, test_labels=test_labels)
 
   if permute_train:
     perm = np.random.RandomState(0).permutation(train_images.shape[0])

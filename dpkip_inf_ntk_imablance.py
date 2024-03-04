@@ -25,7 +25,7 @@ import numpy as np
 
 import functools
 
-from aux_files import class_balanced_sample, one_hot, get_tfds_dataset, get_normalization_data, normalize, generate_balanced_data
+from aux_files import class_balanced_sample, one_hot, get_tfds_dataset, get_normalization_data, normalize, generate_balanced_data, generate_seperate_data, generate_imbalanced_data
 from zca_preprocess import apply_preprocess
 
 from jax import scipy as sp
@@ -56,7 +56,7 @@ flags.DEFINE_float('reg', 1e-6, 'Regularization parameter')
 flags.DEFINE_float('learning_rate', 5e-3, 'Learning rate for training')
 flags.DEFINE_float('l2_norm_clip', 1e-5, 'Clipping norm')
 flags.DEFINE_integer('batch_size', 64, 'Batch size')
-flags.DEFINE_integer('epochs', 10, 'Number of epochs')
+flags.DEFINE_integer('epochs', 20, 'Number of epochs')
 flags.DEFINE_integer('seed', 0, 'Seed for jax PRNG')
 flags.DEFINE_integer(
     'microbatches', None, 'Number of microbatches '
@@ -67,7 +67,7 @@ flags.DEFINE_string('architecture', 'FC', 'choice of neural network architecture
 flags.DEFINE_integer('support_size', 10, 'Support dataset size')
 flags.DEFINE_integer('width', 200, 'NTK width')
 flags.DEFINE_float('delta', 1e-5, 'Delta param for DP')
-flags.DEFINE_float('epsilon', 10. , 'Epsilon param for DP')
+flags.DEFINE_float('epsilon', 1. , 'Epsilon param for DP')
 flags.DEFINE_boolean(
     'zca', False, 'If True apply zca_preprocessing on RGB data.')
 flags.DEFINE_boolean(
@@ -75,7 +75,7 @@ flags.DEFINE_boolean(
 
 #### FL PARAMS
 flags.DEFINE_integer('n_clients', 10, 'number of FL clients')
-flags.DEFINE_float('alpha', 2, 'Alpha param of dirchlet distribution for imbalanced classes')
+flags.DEFINE_float('alpha', 1e-3, 'Alpha param of dirchlet distribution for imbalanced classes')
 
 # Define the KIP loss
 def loss(params, batch, y_support, kernel_fn, reg=1e-6):
@@ -241,7 +241,8 @@ def main(_):
   if FLAGS.dataset == 'mnist':
     train_images, train_labels, test_images, test_labels = datasets.mnist()
     print(train_images.shape, train_labels.shape)
-    client_train_X, client_train_y, client_train_labels, client_test_X, client_test_y, client_test_labels= generate_balanced_data(train_images, train_labels, test_images, test_labels, FLAGS.seed, FLAGS.n_clients)
+    # client_train_X, client_train_y, client_train_labels, client_test_X, client_test_y, client_test_labels= generate_seperate_data(train_images, train_labels, test_images, test_labels, FLAGS.seed, FLAGS.n_clients, FLAGS.alpha)
+    client_train_X, client_train_y, client_train_labels, client_test_X, client_test_y, client_test_labels= generate_seperate_data(train_images, train_labels, test_images, test_labels, FLAGS.seed, FLAGS.n_clients)
     print(len(client_train_X), client_train_y[0].shape, client_train_labels[0].shape)
     # train_labels = client_train_y[0]
     # train_images = client_train_X[0]
@@ -473,7 +474,7 @@ def main(_):
     plt.subplot(3, 10, 20+i)
     plt.imshow(np.squeeze(img))
 
-  filename="distilled_img_{}_{}_supp_size={}_eps={}_delta={}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_zca={}_initimgs={}.png".format(FLAGS.dataset, FLAGS.architecture, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, FLAGS.reg, FLAGS.seed,  FLAGS.zca, FLAGS.random_init)
+  filename="imbalanced_distilled_img_{}_{}_supp_size={}_eps={}_delta={}_alpha{}_lr={}_c={}_bs={}_epochs={}_reg={}_seed={}_zca={}_initimgs={}.png".format(FLAGS.dataset, FLAGS.architecture, FLAGS.support_size, FLAGS.epsilon, FLAGS.delta, FLAGS.alpha, FLAGS.learning_rate, FLAGS.l2_norm_clip, FLAGS.batch_size, FLAGS.epochs, FLAGS.reg, FLAGS.seed,  FLAGS.zca, FLAGS.random_init)
   plt.savefig(os.path.join(save_path, filename), format="png")
 
 if __name__ == '__main__':
