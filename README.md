@@ -1,4 +1,4 @@
-# Fed-DP-KIP
+# FL-DP-KIP
 
 ## Dependendencies
 
@@ -21,7 +21,7 @@
     neural-tangents 0.6.1
     
   
-## Run Fed-DP-KIP
+## Run FL-DP-KIP
 
 `python3 feddpkip_inf_ntk.py > ./output/Fed-DP-KIP.txt`
 
